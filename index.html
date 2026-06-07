@@ -1648,20 +1648,21 @@ button,input,select,textarea{font-family:'Outfit',sans-serif}
       <div class="sh-head"><div class="sh-title">📂 Importar Extrato</div><button class="sh-close" onclick="closeS('s-import')"><i class="ti ti-x"></i></button></div>
       <div class="sh-body">
         <div id="import-step1">
-          <!-- Input file invisível -->
-          <input type="file" id="import-file" accept=".ofx,.qfx,application/x-ofx" style="display:none" onchange="handleImportFile(event)">
-
           <!-- Aviso sobre OFX -->
           <div style="background:var(--gold-bg);border:1px solid var(--gold-bd);border-radius:9px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--c8);line-height:1.5">
             <i class="ti ti-info-circle" style="vertical-align:-1px;color:var(--gold)"></i>
             <strong>Aceita apenas arquivos OFX</strong> — formato disponível no internet banking dos principais bancos (Itaú, BB, Caixa, Bradesco, Santander, Nubank, Inter etc).
           </div>
 
-          <!-- Área visual para clicar/arrastar -->
-          <div class="import-area" id="import-drop" onclick="document.getElementById('import-file').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleImportDrop(event)">
+          <!-- Área visual para clicar/arrastar — input sobreposto (iOS-safe: sem .click() via JS) -->
+          <div class="import-area" id="import-drop" style="position:relative;overflow:hidden" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleImportDrop(event)">
             <i class="ti ti-file-invoice" style="font-size:32px;color:var(--gold);margin-bottom:6px"></i>
             <p style="font-weight:700;color:var(--c9);margin-bottom:3px">Toque para selecionar arquivo OFX</p>
             <p style="font-size:11px;color:var(--c6)">ou arraste aqui</p>
+            <!-- Input sobreposto: cobre toda a área, transparente — funciona em iOS/Safari -->
+            <input type="file" id="import-file" accept=".ofx,.qfx,application/x-ofx"
+              onchange="handleImportFile(event)"
+              style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0">
           </div>
 
           <!-- Textarea oculta — mantida pra compatibilidade do parser, preenchida automaticamente pelo OFX -->
@@ -3026,7 +3027,8 @@ async function _enterClientApp() {
   if(!allData[CU.email]) allData[CU.email]=[];
   populateFilters();
   showView('v-app');
-  goTab('home');
+  // Aguarda v-app estar visível (active) antes de renderizar charts
+  setTimeout(() => goTab('home'), 50);
   setupSwipe();
   // Onboarding novo usuário
   const done = localStorage.getItem('pf_onboard_done_'+CU.email);
@@ -3037,17 +3039,32 @@ const CLIENT_TABS=['home','transactions','budget','reports','alerts','profile'];
 const CLIENT_VW={home:'vw-home',transactions:'vw-transactions',budget:'vw-budget',reports:'vw-reports',alerts:'vw-alerts',profile:'vw-profile'};
 
 function goTab(tab) {
+  // 1. Destruir charts da view atual antes de sair
+  if(curTab === 'reports') { ['C_rb','C_rl','C_rp','C_rp_inc'].forEach(dC); }
+  if(curTab === 'budget')  { dC('C_bud'); }
+  if(curTab === 'home')    { dC('C_home'); }
+
   curTab = tab;
+
+  // 2. Atualizar tab bar
   CLIENT_TABS.forEach(t => {
-    const v = document.getElementById(CLIENT_VW[t]); if(v) v.style.display = t===tab?'flex':'none';
     const tb = document.getElementById('tab-'+t); if(tb) tb.classList.toggle('active', t===tab);
   });
-  if(tab==='home')         renderHome();
-  if(tab==='transactions') renderTx();
-  if(tab==='budget')       renderBudget();
-  if(tab==='reports')      renderReports();
-  if(tab==='alerts')       renderAlerts();
-  if(tab==='profile')      renderClientProfile();
+
+  // 3. Mostrar/ocultar views (display) ANTES do render
+  CLIENT_TABS.forEach(t => {
+    const v = document.getElementById(CLIENT_VW[t]); if(v) v.style.display = t===tab?'flex':'none';
+  });
+
+  // 4. Aguardar reflow completo do DOM antes de renderizar charts
+  setTimeout(() => {
+    if(tab==='home')         renderHome();
+    if(tab==='transactions') renderTx();
+    if(tab==='budget')       renderBudget();
+    if(tab==='reports')      renderReports();
+    if(tab==='alerts')       renderAlerts();
+    if(tab==='profile')      renderClientProfile();
+  }, 30);
 }
 
 function populateFilters() {
@@ -4944,108 +4961,110 @@ function generatePDF() {
   const despesasSecao  = buildCategorySection(despesasPorCat, 'expense');
   const receitasSecao  = buildCategorySection(receitasPorCat, 'income');
 
-  // ─── Montar HTML final ───
-  const reportHTML = `
-    <div id="pdf-overlay" style="position:fixed;inset:0;background:#fff;z-index:9999;overflow-y:auto;color:#111;font-family:Arial,sans-serif">
-      <div style="position:sticky;top:0;background:#fff;border-bottom:1px solid #e0e0e0;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;z-index:10;box-shadow:0 1px 3px rgba(0,0,0,.05)">
-        <button onclick="closeReport()" style="background:none;border:none;color:#9a7a30;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;padding:6px 8px">
-          <i class="ti ti-chevron-left" style="font-size:20px"></i>Voltar ao app
-        </button>
-        <button onclick="window.print()" style="background:#c9a84c;color:#000;border:none;padding:8px 16px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;font-family:Arial,sans-serif">
-          🖨️ Imprimir / PDF
-        </button>
-      </div>
-      <div style="padding:24px 20px;max-width:840px;margin:0 auto">
-
-        <!-- Cabeçalho -->
-        <h1 style="color:#9a7a30;font-size:24px;margin-bottom:4px">FIEL Finance</h1>
-        <div style="color:#666;font-size:13px;margin-bottom:6px">Relatório Financeiro Detalhado</div>
-        <div style="color:#374151;font-size:14px;font-weight:700;margin-bottom:24px">📅 ${periodLabel} · ${CU.name}</div>
-
-        <!-- Resumo geral -->
-        <div style="display:flex;gap:12px;margin-bottom:24px">
-          <div style="flex:1;padding:14px;border-radius:8px;text-align:center;background:#f0fdf4;border:1px solid #a7f3d0"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#059669">Receitas</div><div style="font-size:18px;font-weight:800;font-family:monospace;margin-top:4px;color:#059669">${fmt(inc)}</div></div>
-          <div style="flex:1;padding:14px;border-radius:8px;text-align:center;background:#fef2f2;border:1px solid #fda4af"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#dc2626">Despesas</div><div style="font-size:18px;font-weight:800;font-family:monospace;margin-top:4px;color:#dc2626">${fmt(exp)}</div></div>
-          <div style="flex:1;padding:14px;border-radius:8px;text-align:center;background:#fffbeb;border:1px solid #fcd34d"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9a7a30">Saldo</div><div style="font-size:18px;font-weight:800;font-family:monospace;margin-top:4px;color:${bal>=0?'#059669':'#dc2626'}">${fmt(bal)}</div></div>
-        </div>
-
-        <!-- Resumo por categoria -->
-        ${despesasPorCat.length > 0 ? `
-        <h2 style="color:#dc2626;font-size:15px;margin:18px 0 8px;padding-bottom:6px;border-bottom:2px solid #fca5a5">📊 Resumo de Despesas por Categoria</h2>
-        <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
-          <thead><tr style="background:#f9fafb">
-            <th style="padding:8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#666">Categoria</th>
-            <th style="padding:8px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#666">Total</th>
-            <th style="padding:8px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#666">% do total</th>
-          </tr></thead>
-          <tbody>${despesasResumo}</tbody>
-        </table>
-        ` : ''}
-
-        ${receitasPorCat.length > 0 ? `
-        <h2 style="color:#059669;font-size:15px;margin:18px 0 8px;padding-bottom:6px;border-bottom:2px solid #6ee7b7">📊 Resumo de Receitas por Categoria</h2>
-        <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
-          <thead><tr style="background:#f9fafb">
-            <th style="padding:8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#666">Categoria</th>
-            <th style="padding:8px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#666">Total</th>
-            <th style="padding:8px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#666">% do total</th>
-          </tr></thead>
-          <tbody>${receitasResumo}</tbody>
-        </table>
-        ` : ''}
-
-        <!-- Despesas detalhadas -->
-        <h2 style="color:#dc2626;font-size:16px;margin:28px 0 12px;padding-bottom:6px;border-bottom:2px solid #fca5a5">🛒 Despesas Detalhadas</h2>
-        ${despesasSecao}
-
-        <!-- Receitas detalhadas -->
-        <h2 style="color:#059669;font-size:16px;margin:28px 0 12px;padding-bottom:6px;border-bottom:2px solid #6ee7b7">💰 Receitas Detalhadas</h2>
-        ${receitasSecao}
-
-        <!-- Rodapé -->
-        <div style="margin-top:32px;font-size:11px;color:#999;text-align:center;border-top:1px solid #e5e7eb;padding-top:12px">
-          Gerado pelo <strong style="color:#c9a84c">FIEL Finance</strong> em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR').slice(0,5)}<br>
-          Total de ${txs.length} lançamento${txs.length>1?'s':''} no período
-        </div>
-        <div style="height:40px"></div>
-      </div>
-    </div>
-    <style>
-      @media print {
-        #pdf-overlay > div:first-child { display: none }
-        @page { margin: 1.5cm }
-      }
-    
-/* ── LEMBRETE DE DÍZIMO (rodapé) ──────────────── */
-.tithe-footer{margin:10px 14px 14px;padding:11px 13px;background:rgba(201,168,76,.06);border:1px solid var(--gold-bd);border-radius:10px;display:flex;align-items:center;gap:10px}
-.tithe-footer-icon{width:30px;height:30px;border-radius:9px;background:rgba(201,168,76,.18);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
-.tithe-footer-text{flex:1;min-width:0}
-.tithe-footer-lbl{font-size:10px;font-weight:700;color:var(--c6);text-transform:uppercase;letter-spacing:.5px;line-height:1.2}
-.tithe-footer-val{font-size:13px;font-weight:800;color:var(--gold);font-family:'DM Mono',monospace;line-height:1.3;margin-top:1px}
-.tithe-footer-sub{font-size:10px;color:var(--c7);margin-top:1px}
-
-
-
-/* ── SWIPE TO DELETE NA TABELA COMPACTA ───────── */
-.tx-row-wrap{position:relative;overflow:hidden;background:var(--c2);border-bottom:1px solid var(--c3)}
-.tx-row-wrap:last-child{border-bottom:none}
-.tx-row-delete{position:absolute;top:0;right:0;bottom:0;width:90px;background:linear-gradient(90deg,#a32d2d,var(--red));display:flex;align-items:center;justify-content:center;gap:5px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;user-select:none}
-.tx-row-delete i{font-size:18px}
-.tx-row-wrap .tx-row{transition:transform .25s ease;position:relative;z-index:2;background:var(--c2)}
-.tx-row-wrap.swiped .tx-row{transform:translateX(-90px)}
-.tx-row-wrap.swiping .tx-row{transition:none}
-.tx-row-wrap.tx-row-overdue-wrap{border-left:3px solid var(--red)}
-
-
+  // ─── Montar HTML completo do documento para impressão ───
+  const fullDoc = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FIEL Finance — Relatório ${periodLabel}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,Helvetica,sans-serif;color:#111;background:#fff;padding:24px 20px}
+  h1{color:#9a7a30;font-size:22px;margin-bottom:4px}
+  h2{font-size:15px;margin:24px 0 10px;padding-bottom:6px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:7px 10px;text-align:left;font-size:12px}
+  thead tr{background:#f9fafb}
+  th{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;font-weight:700}
+  @media print{@page{margin:1.5cm} body{padding:0}}
 </style>
-  `;
+</head>
+<body>
+  <h1>FIEL Finance</h1>
+  <div style="color:#666;font-size:13px;margin-bottom:4px">Relatório Financeiro Detalhado</div>
+  <div style="color:#374151;font-size:14px;font-weight:700;margin-bottom:20px">📅 ${periodLabel} · ${CU.name}</div>
+
+  <!-- Resumo geral -->
+  <div style="display:flex;gap:12px;margin-bottom:20px">
+    <div style="flex:1;padding:12px;border-radius:8px;text-align:center;background:#f0fdf4;border:1px solid #a7f3d0">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#059669">Receitas</div>
+      <div style="font-size:17px;font-weight:800;font-family:monospace;margin-top:3px;color:#059669">${fmt(inc)}</div>
+    </div>
+    <div style="flex:1;padding:12px;border-radius:8px;text-align:center;background:#fef2f2;border:1px solid #fda4af">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#dc2626">Despesas</div>
+      <div style="font-size:17px;font-weight:800;font-family:monospace;margin-top:3px;color:#dc2626">${fmt(exp)}</div>
+    </div>
+    <div style="flex:1;padding:12px;border-radius:8px;text-align:center;background:#fffbeb;border:1px solid #fcd34d">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#9a7a30">Saldo</div>
+      <div style="font-size:17px;font-weight:800;font-family:monospace;margin-top:3px;color:${bal>=0?'#059669':'#dc2626'}">${fmt(bal)}</div>
+    </div>
+  </div>
+
+  ${despesasPorCat.length > 0 ? `
+  <h2 style="color:#dc2626;border-bottom:2px solid #fca5a5">📊 Resumo de Despesas por Categoria</h2>
+  <table style="margin-bottom:18px">
+    <thead><tr><th>Categoria</th><th style="text-align:right">Total</th><th style="text-align:right">%</th></tr></thead>
+    <tbody>${despesasResumo}</tbody>
+  </table>` : ''}
+
+  ${receitasPorCat.length > 0 ? `
+  <h2 style="color:#059669;border-bottom:2px solid #6ee7b7">📊 Resumo de Receitas por Categoria</h2>
+  <table style="margin-bottom:18px">
+    <thead><tr><th>Categoria</th><th style="text-align:right">Total</th><th style="text-align:right">%</th></tr></thead>
+    <tbody>${receitasResumo}</tbody>
+  </table>` : ''}
+
+  <h2 style="color:#dc2626;border-bottom:2px solid #fca5a5">🛒 Despesas Detalhadas</h2>
+  ${despesasSecao}
+
+  <h2 style="color:#059669;border-bottom:2px solid #6ee7b7">💰 Receitas Detalhadas</h2>
+  ${receitasSecao}
+
+  <div style="margin-top:28px;font-size:11px;color:#999;text-align:center;border-top:1px solid #e5e7eb;padding-top:10px">
+    Gerado pelo <strong style="color:#c9a84c">FIEL Finance</strong> em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR').slice(0,5)} —
+    ${txs.length} lançamento${txs.length>1?'s':''} no período
+  </div>
+</body>
+</html>`;
+
+  // ─── Fechar sheet e disparar impressão via iframe oculto ───
   closeS('s-pdf');
-  document.body.insertAdjacentHTML('beforeend', reportHTML);
+  toast('Abrindo relatório para salvar como PDF…', 'ti-printer', 'info');
+
+  // Remove iframe anterior se existir
+  const old = document.getElementById('_pdf_frame');
+  if (old) old.remove();
+
+  const frame = document.createElement('iframe');
+  frame.id = '_pdf_frame';
+  frame.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;border:none';
+  document.body.appendChild(frame);
+
+  frame.onload = () => {
+    try {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    } catch(e) {
+      // Fallback: abre em nova aba (necessário em alguns browsers móveis)
+      const blob = new Blob([fullDoc], {type:'text/html'});
+      const url  = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+  };
+
+  const doc = frame.contentDocument || frame.contentWindow.document;
+  doc.open();
+  doc.write(fullDoc);
+  doc.close();
 }
 
 function closeReport() {
   const overlay = document.getElementById('pdf-overlay');
-  if(overlay && overlay.parentNode) overlay.parentNode.remove();
+  if(overlay) overlay.remove();
+  const frame = document.getElementById('_pdf_frame');
+  if(frame) frame.remove();
 }
 document.addEventListener('change', e => { if(e.target.id==='pdf-month') previewPDF(); });
 
