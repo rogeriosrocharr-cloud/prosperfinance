@@ -2021,22 +2021,26 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // ── Detectar retorno do link de recuperação de senha ──
   const hash = window.location.hash;
-  if (hash.includes('type=recovery') || hash.includes('type=invite')) {
-    // Supabase processa o token automaticamente via getSession
-    setTimeout(async () => {
-      const { data: { session } } = await sb.auth.getSession();
-      if (session) {
+  if (hash.includes('type=recovery') || (hash.includes('access_token') && hash.includes('type=recovery'))) {
+    // Extrair tokens do hash
+    const params = new URLSearchParams(hash.replace('#', ''));
+    const accessToken  = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    if (accessToken) {
+      try {
+        // Setar a sessão com o token do link
+        await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken || '' });
         hideSplash();
         showView('v-reset-password');
-        // Limpar hash da URL sem recarregar
         history.replaceState(null, '', window.location.pathname);
         return;
+      } catch(e) {
+        hideSplash();
+        showView('v-chooser');
+        toast('Link expirado. Solicite um novo.', 'ti-alert-circle', 'err');
+        return;
       }
-      hideSplash();
-      showView('v-chooser');
-      toast('Link expirado. Solicite um novo.', 'ti-alert-circle', 'err');
-    }, 800);
-    return;
+    }
   }
 
   try {
