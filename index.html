@@ -1210,12 +1210,11 @@ button,input,select,textarea{font-family:'Outfit',sans-serif}
             <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:0">
               <div><div class="hero-gr" id="h-gr">Bom dia 👋</div><div class="hero-nm" id="h-nm">Usuário</div></div>
               <div style="display:flex;gap:7px">
-                <button class="ibt" onclick="openTxSheet()"><i class="ti ti-plus"></i></button>
                 <button class="ibt notif-wrap" onclick="goTab('alerts')"><i class="ti ti-bell"></i><div class="ndot" id="bell-dot"></div></button>
               </div>
             </div>
             <div>
-              <div class="hero-bal-lbl">Saldo Total</div>
+              <div class="hero-bal-lbl">Saldo Total do Mês</div>
               <div class="hero-bal-wrap">
                 <div class="hero-bal" id="h-bal" style="color:var(--gold)">R$ 0,00</div>
                 <button class="bal-eye-btn" id="bal-eye" onclick="toggleBalanceVisibility()" title="Ocultar/mostrar saldo"><i class="ti ti-eye"></i></button>
@@ -1350,6 +1349,17 @@ button,input,select,textarea{font-family:'Outfit',sans-serif}
             </div></div>
           </div>
           <div id="rt-rc" style="display:none">
+            <!-- Navegador de mês para categorias -->
+            <div class="month-nav" style="margin-top:6px;border-bottom:none;background:transparent">
+              <button class="month-nav-btn" onclick="changeCatRange(-6)" title="6 meses atrás"><i class="ti ti-chevrons-left"></i></button>
+              <button class="month-nav-btn" onclick="changeCatRange(-1)" title="Mês anterior"><i class="ti ti-chevron-left"></i></button>
+              <div class="month-nav-label" id="cat-range-label" style="min-width:180px;font-size:12px;text-transform:none">Mês atual</div>
+              <button class="month-nav-btn" onclick="changeCatRange(1)" title="Próximo mês"><i class="ti ti-chevron-right"></i></button>
+              <button class="month-nav-btn" onclick="changeCatRange(6)" title="6 meses à frente"><i class="ti ti-chevrons-right"></i></button>
+            </div>
+            <div style="text-align:center;padding:4px 14px 8px">
+              <button onclick="resetCatRange()" style="background:var(--gold-bg);border:1px solid var(--gold-bd);color:var(--gold);font-size:11px;font-weight:700;padding:5px 11px;border-radius:7px;cursor:pointer"><i class="ti ti-target" style="font-size:11px;vertical-align:-1px"></i> Voltar ao mês atual</button>
+            </div>
             <div class="card" style="margin-top:8px;margin-bottom:10px"><div class="cp">
               <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:9px;display:flex;align-items:center;gap:5px"><i class="ti ti-arrow-down-right"></i>Despesas por Categoria</div>
               <div class="chart-wrap" style="height:200px"><canvas id="C_rp" role="img" aria-label="Categorias de despesa"></canvas></div>
@@ -3439,29 +3449,39 @@ function renderTitheCard() {
   if (!wrap) return;
 
   const txs = myTx();
-  const tm = thisM(); // YYYY-MM atual
+  // Usa mês selecionado ou mês atual
+  if (typeof _titheMonth === 'undefined') window._titheMonth = thisM();
+  const tm = _titheMonth;
 
-  // Receitas do mês (apenas as já recebidas)
   const monthIncome = txs
     .filter(t => t.type === 'income' && t.date.startsWith(tm) && (t.isPaid !== false))
     .reduce((a, t) => a + t.amount, 0);
 
-  // Se não houver receitas no mês, NÃO mostrar card
-  if (monthIncome <= 0) {
+  if (monthIncome <= 0 && tm === thisM()) {
     wrap.innerHTML = '';
     return;
   }
 
   const recommended = monthIncome * TITHE_PERCENTAGE;
 
-  // Lembrete simples no rodapé
+  // Montar lista de meses disponíveis
+  const months = [...new Set(txs.map(t=>t.date.slice(0,7)))].sort().reverse();
+  if (!months.includes(thisM())) months.unshift(thisM());
+  const opts = months.map(m=>`<option value="${m}" ${m===tm?'selected':''}>${fmonth(m)}</option>`).join('');
+
   wrap.innerHTML = `
     <div class="tithe-footer">
       <div class="tithe-footer-icon"><i class="ti ti-heart-handshake"></i></div>
       <div class="tithe-footer-text">
-        <div class="tithe-footer-lbl">Dízimo do mês (10%)</div>
-        <div class="tithe-footer-val">${fmt(recommended)}</div>
-        <div class="tithe-footer-sub">Sobre ${fmt(monthIncome)} de receitas em ${fmonth(tm)}</div>
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">
+          <div class="tithe-footer-lbl" style="margin-bottom:0">Dízimo (10%)</div>
+          <select onchange="window._titheMonth=this.value;renderTitheCard()"
+            style="background:var(--c3);border:1px solid var(--c4);color:var(--gold);font-size:10px;font-weight:700;border-radius:6px;padding:2px 5px;cursor:pointer;outline:none">
+            ${opts}
+          </select>
+        </div>
+        <div class="tithe-footer-val">${monthIncome > 0 ? fmt(recommended) : 'Sem receitas'}</div>
+        <div class="tithe-footer-sub">${monthIncome > 0 ? `Sobre ${fmt(monthIncome)} de receitas em ${fmonth(tm)}` : `Nenhuma receita em ${fmonth(tm)}`}</div>
       </div>
     </div>
   `;
@@ -4502,6 +4522,10 @@ async function delGoal(id) {
 
 /* ─── REPORTS ──────────────────────────────────── */
 let repTab='rm';
+let _catOffset = 0;
+function changeCatRange(d) { _catOffset += d; renderReports(); }
+function resetCatRange()   { _catOffset = 0;  renderReports(); }
+
 function swRep(tab,btn) {
   repTab = tab;
   ['rm','rc','rb'].forEach(t => document.getElementById('rt-'+t).style.display = t===tab?'block':'none');
@@ -4592,8 +4616,17 @@ function renderReports() {
     });
   }
   if(repTab==='rc') {
+    // Calcular mês do filtro baseado no offset
+    const catNow = new Date();
+    const catDate = new Date(catNow.getFullYear(), catNow.getMonth() + _catOffset, 1);
+    const catMonth = `${catDate.getFullYear()}-${String(catDate.getMonth()+1).padStart(2,'0')}`;
+    const catLbl = document.getElementById('cat-range-label');
+    if (catLbl) catLbl.textContent = _catOffset === 0 ? 'Mês atual' : fmonth(catMonth);
+
+    const txsCat = txs.filter(t => t.date.startsWith(catMonth));
+
     // DESPESAS por categoria
-    const catE = {}; txs.filter(t=>t.type==='expense').forEach(t => { catE[t.category]=(catE[t.category]||0)+t.amount; });
+    const catE = {}; txsCat.filter(t=>t.type==='expense').forEach(t => { catE[t.category]=(catE[t.category]||0)+t.amount; });
     const cle = Object.keys(catE), cve = Object.values(catE);
     dC('C_rp');
     if (cle.length) {
@@ -4608,7 +4641,7 @@ function renderReports() {
     }
 
     // RECEITAS por categoria
-    const catI = {}; txs.filter(t=>t.type==='income').forEach(t => { catI[t.category]=(catI[t.category]||0)+t.amount; });
+    const catI = {}; txsCat.filter(t=>t.type==='income').forEach(t => { catI[t.category]=(catI[t.category]||0)+t.amount; });
     const cli = Object.keys(catI), cvi = Object.values(catI);
     dC('C_rp_inc');
     if (cli.length) {
@@ -4707,17 +4740,7 @@ function renderAlerts() {
     html += '</div>';
   }
 
-  // ─── Seção: ALERTAS CLÁSSICOS ───
-  if (alts.length > 0) {
-    html += `<div style="font-size:11px;font-weight:700;color:var(--c7);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
-      <i class="ti ti-bell" style="color:var(--amber);font-size:14px"></i> Outros alertas
-    </div>`;
-    html += alts.map(a => `<div class="alert-item ai-${a.t}">
-      <div class="alert-ico" style="background:${bg[a.t]}"><i class="ti ${a.ico}" style="color:${col[a.t]}"></i></div>
-      <div class="alert-txt"><strong>${a.title}</strong><p>${a.body}</p></div>
-    </div>`).join('');
-  }
-
+  // ─── Seção: ALERTAS (vencidos/urgentes) integrados nos insights ───
   if (insights.length === 0 && alts.length === 0) {
     html = '<div class="empty"><i class="ti ti-shield-check"></i><p>Tudo em ordem! Nenhum alerta.</p></div>';
   }
