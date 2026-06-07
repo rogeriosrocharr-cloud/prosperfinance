@@ -1660,7 +1660,7 @@ button,input,select,textarea{font-family:'Outfit',sans-serif}
             <p style="font-weight:700;color:var(--c9);margin-bottom:3px">Toque para selecionar arquivo OFX</p>
             <p style="font-size:11px;color:var(--c6)">ou arraste aqui</p>
             <!-- Input sobreposto: cobre toda a área, transparente — funciona em iOS/Safari -->
-            <input type="file" id="import-file" accept=".ofx,.qfx,application/x-ofx"
+            <input type="file" id="import-file" accept=".ofx,.qfx,.OFX,.QFX,application/x-ofx,application/octet-stream,text/plain,*/*"
               onchange="handleImportFile(event)"
               style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0">
           </div>
@@ -5103,8 +5103,12 @@ async function readImportFile(file) {
   const isOFX = fileName.endsWith('.ofx') || fileName.endsWith('.qfx');
 
   if (!isOFX) {
-    toast('Apenas arquivos OFX são aceitos.', 'ti-alert-circle', 'err');
-    return;
+    // No iOS o arquivo pode vir com nome genérico — tenta processar mesmo assim
+    const ext = fileName.split('.').pop();
+    if (ext && !['ofx','qfx','txt',''].includes(ext)) {
+      toast('Selecione um arquivo OFX do seu banco.', 'ti-alert-circle', 'err');
+      return;
+    }
   }
 
   toast('Lendo arquivo OFX...', 'ti-loader', 'info');
