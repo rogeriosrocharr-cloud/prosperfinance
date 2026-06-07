@@ -1052,38 +1052,41 @@ button,input,select,textarea{font-family:'Outfit',sans-serif}
 
     <!-- ══ TELA INICIAL — CLIENTE ══ -->
     <div class="view" id="v-chooser" style="display:none">
-      <div class="chooser-wrap">
+      <div class="chooser-wrap" style="align-items:center;text-align:center">
         <div class="chooser-deco"></div>
 
-        <!-- Logo clicável (toque secreto: 5x para acessar gestor) -->
-        <div id="secret-logo" onclick="secretLogoTap()" style="cursor:pointer;user-select:none;display:inline-flex;flex-direction:column;align-items:stretch;gap:2px;margin-bottom:4px;align-self:center">
-          <div style="display:flex;align-items:center;gap:10px">
+        <!-- Logo centralizado e destacado -->
+        <div id="secret-logo" onclick="secretLogoTap()" style="cursor:pointer;user-select:none;display:inline-flex;flex-direction:column;align-items:stretch;gap:2px;margin-top:auto;margin-bottom:auto">
+          <div style="display:flex;align-items:center;gap:10px;justify-content:center">
             <div class="plogo-icon" style="width:38px;height:38px;border-radius:10px;font-size:20px;box-shadow:0 4px 16px rgba(201,168,76,.4);flex-shrink:0"><i class="ti ti-chart-arcs"></i></div>
             <div class="plogo-name" style="font-size:38px;font-weight:900;letter-spacing:-.5px;line-height:38px">FIEL <span>Finance</span></div>
           </div>
           <div style="font-size:10px;font-weight:500;color:var(--c9);letter-spacing:8px;text-transform:uppercase;text-align:justify;text-align-last:justify;padding:0 2px">Controle Financeiro</div>
         </div>
 
-        <div class="chooser-title">Suas finanças<br>sob <span>controle.</span></div>
-        <div class="chooser-sub">Acompanhamento financeiro personalizado com insights inteligentes</div>
+        <!-- Bloco inferior centralizado -->
+        <div style="width:100%;margin-top:auto">
+          <div class="chooser-title" style="font-size:18px;font-weight:700;margin-top:0;margin-bottom:4px">Suas finanças sob <span>controle.</span></div>
+          <div class="chooser-sub" style="font-size:12px;margin-bottom:20px">Acompanhamento financeiro personalizado com insights inteligentes</div>
 
-        <!-- Card único — entrada do cliente -->
-        <div class="role-card gold" onclick="enterAsClient()" style="padding:14px 18px;border-radius:14px;margin-bottom:10px">
-          <div class="role-icon-big role-icon-gold" style="width:42px;height:42px;border-radius:12px;font-size:20px"><i class="ti ti-login"></i></div>
-          <div class="role-info">
-            <div class="role-name" style="font-size:14px">Acessar minha conta</div>
-            <div class="role-desc" style="font-size:11px">Entrar com e-mail e senha</div>
+          <!-- Card único — entrada do cliente -->
+          <div class="role-card gold" onclick="enterAsClient()" style="padding:14px 18px;border-radius:14px;margin-bottom:10px;text-align:left">
+            <div class="role-icon-big role-icon-gold" style="width:42px;height:42px;border-radius:12px;font-size:20px"><i class="ti ti-login"></i></div>
+            <div class="role-info">
+              <div class="role-name" style="font-size:14px">Acessar minha conta</div>
+              <div class="role-desc" style="font-size:11px">Entrar com e-mail e senha</div>
+            </div>
+            <i class="ti ti-chevron-right role-arrow" style="font-size:16px"></i>
           </div>
-          <i class="ti ti-chevron-right role-arrow" style="font-size:16px"></i>
-        </div>
 
-        <div class="role-card gold" onclick="showReg()" style="background:linear-gradient(135deg,var(--c1),var(--c2));border-color:var(--gold-bd);padding:14px 18px;border-radius:14px">
-          <div class="role-icon-big" style="background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd);width:42px;height:42px;border-radius:12px;font-size:20px"><i class="ti ti-user-plus"></i></div>
-          <div class="role-info">
-            <div class="role-name" style="font-size:14px">Criar conta nova</div>
-            <div class="role-desc" style="font-size:11px">Cadastre-se e comece em 2 minutos</div>
+          <div class="role-card gold" onclick="showReg()" style="background:linear-gradient(135deg,var(--c1),var(--c2));border-color:var(--gold-bd);padding:14px 18px;border-radius:14px;text-align:left">
+            <div class="role-icon-big" style="background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd);width:42px;height:42px;border-radius:12px;font-size:20px"><i class="ti ti-user-plus"></i></div>
+            <div class="role-info">
+              <div class="role-name" style="font-size:14px">Criar conta nova</div>
+              <div class="role-desc" style="font-size:11px">Cadastre-se e comece em 2 minutos</div>
+            </div>
+            <i class="ti ti-chevron-right role-arrow" style="font-size:16px"></i>
           </div>
-          <i class="ti ti-chevron-right role-arrow" style="font-size:16px"></i>
         </div>
 
         <!-- Indicador visual discreto do toque secreto (aparece após 2 toques) -->
