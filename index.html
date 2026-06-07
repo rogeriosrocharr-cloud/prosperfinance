@@ -1056,31 +1056,34 @@ button,input,select,textarea{font-family:'Outfit',sans-serif}
         <div class="chooser-deco"></div>
 
         <!-- Logo clicável (toque secreto: 5x para acessar gestor) -->
-        <div class="plogo" id="secret-logo" onclick="secretLogoTap()" style="cursor:pointer;user-select:none">
-          <div class="plogo-icon"><i class="ti ti-chart-arcs"></i></div>
-          <div class="plogo-name">FIEL <span>Finance</span></div>
+        <div id="secret-logo" onclick="secretLogoTap()" style="cursor:pointer;user-select:none;display:inline-flex;flex-direction:column;align-items:stretch;gap:2px;margin-bottom:4px;align-self:center">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="plogo-icon" style="width:38px;height:38px;border-radius:10px;font-size:20px;box-shadow:0 4px 16px rgba(201,168,76,.4);flex-shrink:0"><i class="ti ti-chart-arcs"></i></div>
+            <div class="plogo-name" style="font-size:38px;font-weight:900;letter-spacing:-.5px;line-height:38px">FIEL <span>Finance</span></div>
+          </div>
+          <div style="font-size:10px;font-weight:500;color:var(--c9);letter-spacing:8px;text-transform:uppercase;text-align:justify;text-align-last:justify;padding:0 2px">Controle Financeiro</div>
         </div>
 
         <div class="chooser-title">Suas finanças<br>sob <span>controle.</span></div>
-        <div class="chooser-sub">Acompanhamento financeiro personalizado com consultoria especializada</div>
+        <div class="chooser-sub">Acompanhamento financeiro personalizado com insights inteligentes</div>
 
         <!-- Card único — entrada do cliente -->
-        <div class="role-card gold" onclick="enterAsClient()">
-          <div class="role-icon-big role-icon-gold"><i class="ti ti-login"></i></div>
+        <div class="role-card gold" onclick="enterAsClient()" style="padding:14px 18px;border-radius:14px;margin-bottom:10px">
+          <div class="role-icon-big role-icon-gold" style="width:42px;height:42px;border-radius:12px;font-size:20px"><i class="ti ti-login"></i></div>
           <div class="role-info">
-            <div class="role-name">Acessar minha conta</div>
-            <div class="role-desc">Entrar com e-mail e senha</div>
+            <div class="role-name" style="font-size:14px">Acessar minha conta</div>
+            <div class="role-desc" style="font-size:11px">Entrar com e-mail e senha</div>
           </div>
-          <i class="ti ti-chevron-right role-arrow"></i>
+          <i class="ti ti-chevron-right role-arrow" style="font-size:16px"></i>
         </div>
 
-        <div class="role-card gold" onclick="showReg()" style="background:linear-gradient(135deg,var(--c1),var(--c2));border-color:var(--gold-bd)">
-          <div class="role-icon-big" style="background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd)"><i class="ti ti-user-plus"></i></div>
+        <div class="role-card gold" onclick="showReg()" style="background:linear-gradient(135deg,var(--c1),var(--c2));border-color:var(--gold-bd);padding:14px 18px;border-radius:14px">
+          <div class="role-icon-big" style="background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd);width:42px;height:42px;border-radius:12px;font-size:20px"><i class="ti ti-user-plus"></i></div>
           <div class="role-info">
-            <div class="role-name">Criar conta nova</div>
-            <div class="role-desc">Cadastre-se e comece em 2 minutos</div>
+            <div class="role-name" style="font-size:14px">Criar conta nova</div>
+            <div class="role-desc" style="font-size:11px">Cadastre-se e comece em 2 minutos</div>
           </div>
-          <i class="ti ti-chevron-right role-arrow"></i>
+          <i class="ti ti-chevron-right role-arrow" style="font-size:16px"></i>
         </div>
 
         <!-- Indicador visual discreto do toque secreto (aparece após 2 toques) -->
@@ -1089,8 +1092,12 @@ button,input,select,textarea{font-family:'Outfit',sans-serif}
         </div>
 
         <div class="chooser-footer">
+          <div style="font-size:11px;color:var(--c6);font-style:italic;margin-bottom:8px;line-height:1.5;padding:0 8px">
+            "Quem é fiel no pouco, também é fiel no muito..."<br>
+            <span style="color:var(--gold);font-style:normal;font-weight:700;font-size:10px">Lucas 16:10</span>
+          </div>
           Plataforma de gestão financeira<br>
-          <strong>FIEL Finance</strong> · v9.8
+          <span style="color:var(--c9);font-weight:700">FIEL</span> <span style="color:var(--gold);font-weight:700">Finance</span> · v9.9
         </div>
       </div>
     </div>
@@ -1144,6 +1151,7 @@ button,input,select,textarea{font-family:'Outfit',sans-serif}
         <div class="auth-title" style="font-size:22px">Criar conta de Cliente</div>
         <div class="auth-sub">Comece a controlar suas finanças hoje mesmo</div>
         <div class="lf"><label>Nome completo</label><input type="text" id="rn" placeholder="Seu nome completo" autocomplete="name"></div>
+        <div class="lf"><label>WhatsApp</label><input type="tel" id="rw" placeholder="(00) 00000-0000" inputmode="tel" autocomplete="tel"></div>
         <div class="lf"><label>E-mail</label><input type="email" id="re" placeholder="seu@email.com" inputmode="email" autocomplete="email" oninput="validateEmailField('re','re2')"></div>
         <div class="lf"><label>Confirmar e-mail</label><input type="email" id="re2" placeholder="Repita o e-mail" inputmode="email" oninput="validateEmailField('re','re2')"><div class="email-match" id="re-match"></div></div>
         <div class="lf"><label>Senha</label><input type="password" id="rp" placeholder="Mínimo 6 caracteres" autocomplete="new-password" oninput="checkPwdStrength('rp','rp-strength')">
@@ -2633,6 +2641,7 @@ async function doLogin() {
 
 async function doReg() {
   const name  = (document.getElementById('rn').value || '').trim();
+  const whats = (document.getElementById('rw').value || '').trim();
   const email = (document.getElementById('re').value || '').trim().toLowerCase();
   const email2= (document.getElementById('re2').value || '').trim().toLowerCase();
   const pass  = document.getElementById('rp').value || '';
@@ -2660,7 +2669,7 @@ async function doReg() {
       email,
       password: pass,
       options: {
-        data: { name, role, avatar, color }
+        data: { name, role, avatar, color, whatsapp: whats }
       }
     });
 
@@ -2699,8 +2708,10 @@ async function doReg() {
 
     CU = {
       id: profile.id, email: profile.email, name: profile.name, role: profile.role,
-      avatar: profile.avatar, color: profile.color, plan: profile.plan, blocked: profile.blocked
+      avatar: profile.avatar, color: profile.color, plan: profile.plan, blocked: profile.blocked,
+      whatsapp: profile.whatsapp || whats
     };
+    if (whats) await sb.from('profiles').update({ whatsapp: whats }).eq('id', profile.id);
     await loadAll();
     launchApp();
     toast('Conta criada! Bem-vindo(a)!', 'ti-check', 'ok');
