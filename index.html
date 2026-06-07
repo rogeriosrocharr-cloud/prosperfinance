@@ -1095,6 +1095,24 @@ button,input,select,textarea{font-family:'Outfit',sans-serif}
       </div>
     </div>
 
+
+    <!-- ══ REDEFINIR SENHA ══ -->
+    <div class="view" id="v-reset-password" style="display:none">
+      <div class="auth-wrap">
+        <div class="auth-deco" style="width:200px;height:200px;background:radial-gradient(circle,rgba(201,168,76,.15),transparent);top:-60px;right:-50px"></div>
+        <div class="plogo">
+          <div class="plogo-icon"><i class="ti ti-target"></i></div>
+          <div class="plogo-name">FIEL <span>Finance</span></div>
+        </div>
+        <div class="auth-title">Nova <span>senha</span></div>
+        <div class="auth-sub">Digite e confirme sua nova senha abaixo.</div>
+        <div class="lf"><label>Nova senha</label><input type="password" id="rp-pwd" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+        <div class="lf"><label>Confirmar nova senha</label><input type="password" id="rp-pwd2" placeholder="Repita a nova senha" autocomplete="new-password"></div>
+        <div class="auth-err" id="rp-err"></div>
+        <button class="auth-btn" onclick="saveNewPassword()"><i class="ti ti-lock-check"></i>Salvar nova senha</button>
+      </div>
+    </div>
+
     <!-- ══ LOGIN CLIENTE ══ -->
     <div class="view" id="v-login" style="display:none">
       <div class="auth-wrap">
@@ -2000,6 +2018,27 @@ async function loadAll() {
 /* ─── BOOT ─────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', async () => {
   showView('v-splash');
+
+  // ── Detectar retorno do link de recuperação de senha ──
+  const hash = window.location.hash;
+  if (hash.includes('type=recovery') || hash.includes('type=invite')) {
+    // Supabase processa o token automaticamente via getSession
+    setTimeout(async () => {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        hideSplash();
+        showView('v-reset-password');
+        // Limpar hash da URL sem recarregar
+        history.replaceState(null, '', window.location.pathname);
+        return;
+      }
+      hideSplash();
+      showView('v-chooser');
+      toast('Link expirado. Solicite um novo.', 'ti-alert-circle', 'err');
+    }, 800);
+    return;
+  }
+
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (session) {
@@ -2111,7 +2150,7 @@ const cOpts = (legend=true) => ({
 
 /* ─── VIEW MANAGER ─────────────────────────────── */
 function showView(id) {
-  ['v-splash','v-chooser','v-login','v-register','v-admin-login','v-admin-register','v-verse','v-app','v-admin','v-onboard'].forEach(v => {
+  ['v-splash','v-chooser','v-login','v-register','v-admin-login','v-admin-register','v-verse','v-app','v-admin','v-onboard','v-reset-password'].forEach(v => {
     const el = document.getElementById(v); if(!el) return;
     if(v===id){ el.style.display='flex'; setTimeout(()=>el.classList.add('active'),10); }
     else { el.classList.remove('active'); el.style.display='none'; }
@@ -2424,11 +2463,29 @@ async function sendRecovery() {
   if(!isValidEmail(email)) { showErr(errEl,'E-mail inválido.'); return; }
   try {
     const { error } = await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin
+      redirectTo: 'https://rogeriosrocharr-cloud.github.io/prosperfinance'
     });
     if(error) { showErr(errEl,'Erro: '+error.message); return; }
     closeS('s-recover');
     toast('Link enviado! Verifique seu e-mail.','ti-mail','ok');
+  } catch(e) {
+    showErr(errEl,'Erro de conexão. Tente novamente.');
+  }
+}
+
+async function saveNewPassword() {
+  const pwd  = document.getElementById('rp-pwd').value || '';
+  const pwd2 = document.getElementById('rp-pwd2').value || '';
+  const errEl = document.getElementById('rp-err');
+  errEl.style.display = 'none';
+  if (!pwd || pwd.length < 6) { showErr(errEl,'Senha deve ter pelo menos 6 caracteres.'); return; }
+  if (pwd !== pwd2)            { showErr(errEl,'As senhas não coincidem.'); return; }
+  try {
+    const { error } = await sb.auth.updateUser({ password: pwd });
+    if (error) { showErr(errEl,'Erro: '+error.message); return; }
+    await sb.auth.signOut();
+    showView('v-chooser');
+    toast('Senha alterada com sucesso! Faça login.','ti-lock-check','ok');
   } catch(e) {
     showErr(errEl,'Erro de conexão. Tente novamente.');
   }
