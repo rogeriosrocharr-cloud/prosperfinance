@@ -2,8 +2,8 @@
   "name": "FIEL Finance",
   "short_name": "FIEL Finance",
   "description": "Controle financeiro personalizado com insights inteligentes",
-  "start_url": "/prosperfinance/",
-  "scope": "/prosperfinance/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0e0e0e",
@@ -30,14 +30,14 @@
       "name": "Nova Despesa",
       "short_name": "Despesa",
       "description": "Lançar nova despesa",
-      "url": "/prosperfinance/#despesa",
+      "url": "/#despesa",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Nova Receita",
       "short_name": "Receita",
       "description": "Lançar nova receita",
-      "url": "/prosperfinance/#receita",
+      "url": "/#receita",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]
