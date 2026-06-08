@@ -4875,6 +4875,9 @@ function renderClientProfile() {
         <button onclick="openS('s-terms')" style="width:100%;background:var(--c2);color:var(--c9);border:1px solid var(--c3);border-radius:var(--rs);padding:12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:10px;text-align:left">
           <i class="ti ti-shield-check" style="color:var(--gold);font-size:17px"></i>Termos e Privacidade
         </button>
+        <button onclick="subscribePush()" style="width:100%;background:var(--c2);color:var(--c9);border:1px solid var(--c3);border-radius:var(--rs);padding:12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:10px;text-align:left">
+          <i class="ti ti-bell-ringing" style="color:var(--gold);font-size:17px"></i>Ativar notificações push
+        </button>
         <button onclick="openS('s-about')" style="width:100%;background:var(--c2);color:var(--c9);border:1px solid var(--c3);border-radius:var(--rs);padding:12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:10px;text-align:left">
           <i class="ti ti-info-circle" style="color:var(--gold);font-size:17px"></i>Sobre o app
         </button>
@@ -5858,19 +5861,52 @@ function toast(msg, ico, type) {
 
 </script>
 
-<!-- PWA Service Worker -->
+<!-- PWA Service Worker + Push Notifications -->
 <script>
+const VAPID_PUBLIC_KEY = 'BP1JOklyC96Bj2y9TTpzZ57JEwVjV684VKjPCfa8fpnrqmySIyxb-vI9lfVfHWmfQWLXjJpoSx1f6LZ7jBk-PtQ';
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js')
-      .then(reg => console.log('SW registrado:', reg.scope))
+      .then(reg => { console.log('SW registrado:', reg.scope); window._swReg = reg; })
       .catch(err => console.log('SW erro:', err));
   });
 }
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw     = window.atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function subscribePush() {
+  try {
+    if (!('Notification' in window) || !window._swReg) return;
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') { toast('Permissão negada para notificações.','ti-bell-off','err'); return; }
+    const existing = await window._swReg.pushManager.getSubscription();
+    const sub = existing || await window._swReg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    await savePushSub(sub);
+    toast('Notificações ativadas! ✅','ti-bell-check','ok');
+  } catch(e) { console.log('Push erro:', e); }
+}
+
+async function savePushSub(sub) {
+  if (!window.sb || !window.CU) return;
+  const s = sub.toJSON();
+  await window.sb.from('push_subscriptions').upsert(
+    { user_id: window.CU.id, endpoint: s.endpoint, subscription: s },
+    { onConflict: 'user_id,endpoint' }
+  );
+}
+
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredPrompt = e;
+  e.preventDefault(); deferredPrompt = e;
   const btn = document.getElementById('pwa-install-btn');
   if (btn) btn.style.display = 'flex';
 });
@@ -5880,10 +5916,7 @@ window.addEventListener('appinstalled', () => {
   if (btn) btn.style.display = 'none';
 });
 function installPWA() {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
-  }
+  if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt = null; }); }
 }
 </script>
 </body>
