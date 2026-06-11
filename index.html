@@ -1959,9 +1959,56 @@ let _currentNoteEmail = null;
 let _currentSharedGoalEmail = null;
 
 /* ─── CARREGAR DADOS DA NUVEM ──────────────────── */
+// ── Cache local offline ──────────────────────────────────────
+const LOCAL_KEY = email => `fiel_cache_${email}`;
+
+function saveLocalCache(email) {
+  try {
+    const cache = {
+      allData:      allData[email]      || [],
+      budgets:      budgets[email]      || {},
+      goals:        goals[email]        || [],
+      consultNotes: consultNotes[email] || [],
+      sharedGoals:  sharedGoals[email]  || [],
+      savedAt: Date.now()
+    };
+    localStorage.setItem(LOCAL_KEY(email), JSON.stringify(cache));
+  } catch(e) { console.warn('Cache local falhou:', e); }
+}
+
+function loadLocalCache(email) {
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY(email));
+    if (!raw) return false;
+    const cache = JSON.parse(raw);
+    allData[email]      = cache.allData      || [];
+    budgets[email]      = cache.budgets      || {};
+    goals[email]        = cache.goals        || [];
+    consultNotes[email] = cache.consultNotes || [];
+    sharedGoals[email]  = cache.sharedGoals  || [];
+    const ago = Math.round((Date.now() - cache.savedAt) / 60000);
+    console.log(`Cache local carregado (${ago} min atrás)`);
+    return true;
+  } catch(e) { return false; }
+}
+
+function isOnline() { return navigator.onLine !== false; }
+
 async function loadAll() {
   try {
     USERS = {}; allData = {}; budgets = {}; goals = {}; consultNotes = {}; sharedGoals = {};
+
+    // Se offline, carregar do cache local
+    if (!isOnline()) {
+      const ok = loadLocalCache(CU.email);
+      if (ok) {
+        toast('Modo offline — dados do último acesso', 'ti-wifi-off', 'info');
+        return;
+      } else {
+        toast('Sem conexão e sem cache local', 'ti-wifi-off', 'err');
+        return;
+      }
+    }
 
     // 1. Profiles
     const { data: profiles, error: e1 } = await sb.from('profiles').select('*');
@@ -2034,9 +2081,17 @@ async function loadAll() {
         createdAt: g.created_at
       });
     });
+    // Salvar cache local após carregar com sucesso
+    if (CU?.email) saveLocalCache(CU.email);
+
   } catch (err) {
     console.error('Erro ao carregar:', err);
-    toast('Erro ao conectar — verifique a internet', 'ti-wifi-off', 'err');
+    // Tentar cache local como fallback
+    if (CU?.email && loadLocalCache(CU.email)) {
+      toast('Sem conexão — exibindo dados salvos', 'ti-wifi-off', 'info');
+    } else {
+      toast('Erro ao conectar — verifique a internet', 'ti-wifi-off', 'err');
+    }
   }
 }
 
@@ -3126,6 +3181,8 @@ async function _enterClientApp() {
   if(!allData[CU.email]) allData[CU.email]=[];
   populateFilters();
   showView('v-app');
+  // Processar fila de sincronização pendente
+  setTimeout(processSyncQueue, 2000);
   // Aguarda v-app estar visível (active) antes de renderizar charts
   setTimeout(() => goTab('home'), 50);
   setupSwipe();
@@ -4007,9 +4064,28 @@ function editTx(id) {
 function confirmDel(id) { if(confirm('Remover este lançamento?')) delTx(id); }
 
 async function delTx(id) {
+  // Se offline, só remove localmente e adiciona à fila
+  if (!isOnline()) {
+    allData[CU.email] = (allData[CU.email]||[]).filter(t => t.id != id);
+    // Só enfileira se não for um ID temporário offline
+    if (!String(id).startsWith('offline_')) {
+      addToSyncQueue(CU.email, { type: 'delete', id });
+    } else {
+      // Remover da fila de sync se ainda não foi sincronizado
+      const queue = getSyncQueue(CU.email).filter(a => a.tempId !== id);
+      saveSyncQueue(CU.email, queue);
+    }
+    saveLocalCache(CU.email);
+    populateFilters();
+    if(curTab==='home') renderHome();
+    if(curTab==='transactions') renderTx();
+    toast('Removido offline — será sincronizado quando conectar','ti-trash','info');
+    return;
+  }
   const { error } = await sb.from('transactions').delete().eq('id', id);
   if(error) { toast('Erro: '+error.message, 'ti-alert-circle', 'err'); return; }
   allData[CU.email] = (allData[CU.email]||[]).filter(t => t.id != id);
+  saveLocalCache(CU.email);
   populateFilters();
   // Re-render todas as views relevantes
   if(curTab==='home') renderHome();
@@ -4272,6 +4348,70 @@ async function togglePayStatus(txId) {
 }
 
 
+// ── Fila de sincronização offline ────────────────────────────
+const SYNC_KEY = email => `fiel_sync_queue_${email}`;
+
+function getSyncQueue(email) {
+  try { return JSON.parse(localStorage.getItem(SYNC_KEY(email)) || '[]'); }
+  catch(e) { return []; }
+}
+
+function saveSyncQueue(email, queue) {
+  try { localStorage.setItem(SYNC_KEY(email), JSON.stringify(queue)); }
+  catch(e) { console.warn('Fila sync falhou:', e); }
+}
+
+function addToSyncQueue(email, action) {
+  const queue = getSyncQueue(email);
+  queue.push({ ...action, queuedAt: Date.now() });
+  saveSyncQueue(email, queue);
+}
+
+async function processSyncQueue() {
+  if (!CU?.email || !isOnline()) return;
+  const queue = getSyncQueue(CU.email);
+  if (!queue.length) return;
+
+  let synced = 0;
+  const failed = [];
+
+  for (const action of queue) {
+    try {
+      if (action.type === 'insert') {
+        const { data, error } = await sb.from('transactions').insert(action.payload).select().single();
+        if (error) throw error;
+        // Substituir ID temporário pelo ID real
+        const idx = allData[CU.email]?.findIndex(t => t.id === action.tempId);
+        if (idx >= 0) allData[CU.email][idx].id = data.id;
+        synced++;
+      } else if (action.type === 'delete') {
+        const { error } = await sb.from('transactions').delete().eq('id', action.id);
+        if (error) throw error;
+        synced++;
+      } else if (action.type === 'update') {
+        const { error } = await sb.from('transactions').update(action.payload).eq('id', action.id);
+        if (error) throw error;
+        synced++;
+      }
+    } catch(e) {
+      console.warn('Sync falhou para ação:', action, e);
+      failed.push(action);
+    }
+  }
+
+  saveSyncQueue(CU.email, failed);
+  if (synced > 0) {
+    saveLocalCache(CU.email);
+    toast(`${synced} lançamento(s) sincronizado(s)!`, 'ti-cloud-upload', 'ok');
+  }
+}
+
+// Escutar quando a conexão voltar
+window.addEventListener('online', () => {
+  toast('Conexão restaurada! Sincronizando...', 'ti-wifi', 'ok');
+  setTimeout(processSyncQueue, 1500);
+});
+
 async function saveTx() {
   const date = document.getElementById('f-date').value;
   const dueDate = (document.getElementById('f-due')||{}).value || date;
@@ -4355,19 +4495,34 @@ async function saveTx() {
     toast(cType === 'income' ? `${parcCount} recebimentos programados!` : `${parcCount} parcelas criadas!`,'ti-check','ok');
   } else {
     // LANÇAMENTO ÚNICO normal
-    const { data, error } = await sb.from('transactions').insert({
-      user_id: CU.id, tx_date: date, due_date: dueDate, is_paid: isPaid, paid_at: paidAt,
-      description: desc, amount, tx_type: cType,
-      category: cat, note, recurrence: rec, auto_generated: false
-    }).select().single();
-    if(error) { toast('Erro: '+error.message, 'ti-alert-circle', 'err'); return; }
-    if(!allData[CU.email]) allData[CU.email]=[];
-    allData[CU.email].push({
-      id: data.id, date, dueDate, isPaid, paidAt, amount, desc, category:cat, note, type:cType, rec, autoGenerated:false
-    });
-    toast('Salvo!','ti-check','ok');
+    if (!isOnline()) {
+      // Offline: salvar localmente e adicionar à fila de sync
+      const tempId = 'offline_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+      const newTx = { id: tempId, date, dueDate, isPaid, paidAt, amount, desc, category:cat, note, type:cType, rec, autoGenerated:false, offline: true };
+      if(!allData[CU.email]) allData[CU.email]=[];
+      allData[CU.email].push(newTx);
+      addToSyncQueue(CU.email, {
+        type: 'insert', tempId,
+        payload: { user_id: CU.id, tx_date: date, due_date: dueDate, is_paid: isPaid, paid_at: paidAt, description: desc, amount, tx_type: cType, category: cat, note, recurrence: rec, auto_generated: false }
+      });
+      toast('Salvo offline — será sincronizado quando conectar', 'ti-cloud-off', 'info');
+    } else {
+      const { data, error } = await sb.from('transactions').insert({
+        user_id: CU.id, tx_date: date, due_date: dueDate, is_paid: isPaid, paid_at: paidAt,
+        description: desc, amount, tx_type: cType,
+        category: cat, note, recurrence: rec, auto_generated: false
+      }).select().single();
+      if(error) { toast('Erro: '+error.message, 'ti-alert-circle', 'err'); return; }
+      if(!allData[CU.email]) allData[CU.email]=[];
+      allData[CU.email].push({
+        id: data.id, date, dueDate, isPaid, paidAt, amount, desc, category:cat, note, type:cType, rec, autoGenerated:false
+      });
+      toast('Salvo!','ti-check','ok');
+    }
   }
   closeS('s-tx'); populateFilters(); editId=null;
+  // Atualizar cache local
+  saveLocalCache(CU.email);
   // Reset parcelamento toggle
   if (parcSwitch) parcSwitch.classList.remove('on');
   const parcBody = document.getElementById('parc-body');
