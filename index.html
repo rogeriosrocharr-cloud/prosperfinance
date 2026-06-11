@@ -2126,8 +2126,19 @@ window.addEventListener('DOMContentLoaded', async () => {
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (session) {
-      // Buscar perfil do usuário logado
-      const { data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+      // Buscar perfil — com fallback offline
+      let profile = null;
+      try {
+        const { data } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+        profile = data;
+        // Salvar perfil localmente para uso offline
+        if (profile) localStorage.setItem('fiel_profile_cache', JSON.stringify(profile));
+      } catch(fetchErr) {
+        // Offline — usar perfil em cache
+        const cached = localStorage.getItem('fiel_profile_cache');
+        if (cached) profile = JSON.parse(cached);
+      }
+
       if (profile) {
         if (profile.blocked) {
           await sb.auth.signOut();
@@ -2138,7 +2149,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
         CU = {
           id: profile.id, email: profile.email, name: profile.name, role: profile.role,
-          avatar: profile.avatar, color: profile.color, plan: profile.plan, blocked: profile.blocked
+          avatar: profile.avatar, color: profile.color, plan: profile.plan, blocked: profile.blocked,
+          whatsapp: profile.whatsapp
         };
         await loadAll();
         hideSplash();
@@ -2149,7 +2161,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     hideSplash();
     showView('v-chooser');
   } catch (e) {
-    console.error('Boot error:', e);
+    // Erro total de conexão — tentar login offline com cache
+    console.warn('Boot error:', e);
+    const cachedProfile = localStorage.getItem('fiel_profile_cache');
+    if (cachedProfile) {
+      try {
+        const profile = JSON.parse(cachedProfile);
+        CU = {
+          id: profile.id, email: profile.email, name: profile.name, role: profile.role,
+          avatar: profile.avatar, color: profile.color, plan: profile.plan, blocked: profile.blocked,
+          whatsapp: profile.whatsapp
+        };
+        await loadAll(); // Vai usar cache local
+        hideSplash();
+        launchApp();
+        toast('Modo offline ativo', 'ti-wifi-off', 'info');
+        return;
+      } catch(e2) { console.error('Offline boot falhou:', e2); }
+    }
     hideSplash();
     showView('v-chooser');
   }
@@ -2793,7 +2822,7 @@ async function doReg() {
   }
 }
 
-async function doLogout() { hideRefreshFab(); await sb.auth.signOut(); CU=null; showView('v-chooser'); }
+async function doLogout() { hideRefreshFab(); await sb.auth.signOut(); CU=null; localStorage.removeItem('fiel_profile_cache'); showView('v-chooser'); }
 async function adLogout() { hideRefreshFab(); await sb.auth.signOut(); CU=null; showView('v-chooser'); }
 
 /* ─── LAUNCH ───────────────────────────────────── */
