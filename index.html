@@ -1114,7 +1114,7 @@ button,input,select,textarea{font-family:'Outfit',sans-serif}
             <span style="color:var(--gold);font-style:normal;font-weight:700;font-size:10px">Lucas 16:10</span>
           </div>
           Plataforma de gestão financeira<br>
-          <span style="color:var(--c9);font-weight:700">FIEL</span> <span style="color:var(--gold);font-weight:700">Finance</span> · v9.9
+          <span style="color:var(--c9);font-weight:700">FIEL</span> <span style="color:var(--gold);font-weight:700">Finance</span> · v10.0
         </div>
       </div>
     </div>
@@ -6095,10 +6095,25 @@ function toast(msg, ico, type) {
 const VAPID_PUBLIC_KEY = 'BP1JOklyC96Bj2y9TTpzZ57JEwVjV684VKjPCfa8fpnrqmySIyxb-vI9lfVfHWmfQWLXjJpoSx1f6LZ7jBk-PtQ';
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js')
-      .then(reg => { console.log('SW registrado:', reg.scope); window._swReg = reg; })
-      .catch(err => console.log('SW erro:', err));
+  window.addEventListener('load', async () => {
+    try {
+      // Detectar base path automaticamente
+      const swPath = window.location.pathname.replace(/\/[^/]*$/, '') + '/sw.js';
+      const reg = await navigator.serviceWorker.register(swPath, { updateViaCache: 'none' });
+      window._swReg = reg;
+      console.log('SW registrado:', reg.scope);
+      // Forçar atualização imediata se houver novo SW
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            newSW.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
+      });
+    } catch(err) {
+      console.log('SW erro:', err);
+    }
   });
 }
 
