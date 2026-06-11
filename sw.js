@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fiel-finance-v4';
+const CACHE_NAME = 'fiel-finance-v5';
 
 // Detectar automaticamente o caminho base
 const BASE = self.location.pathname.replace('/sw.js', '');
@@ -9,6 +9,10 @@ const ASSETS = [
   BASE + '/manifest.json',
   BASE + '/icon-192.png',
   BASE + '/icon-512.png',
+  // Dependências externas — cachear para funcionar offline
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js',
+  'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css',
+  'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/fonts/tabler-icons.woff2',
 ];
 
 // ── Instalar: cachear assets principais ──

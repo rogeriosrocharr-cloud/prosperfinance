@@ -1939,9 +1939,30 @@ const SUPABASE_URL = 'https://skpgyejlrrqygytvmlpa.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_am-a0KBKz-1B-7p-gL6zhw_uP3m3ugW';
 const MASTER_CODE  = 'PROSPER2025';
 
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true }
-});
+// Supabase com fallback offline — se o CDN não carregou, usar mock
+const sb = window.supabase
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true }
+    })
+  : {
+      // Mock offline — métodos retornam erro controlado
+      auth: {
+        getSession: async () => ({ data: { session: null }, error: null }),
+        signInWithPassword: async () => ({ data: null, error: { message: 'Sem conexão com internet' } }),
+        signOut: async () => {},
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: ()=>{} } } }),
+        resetPasswordForEmail: async () => ({ error: { message: 'Sem conexão' } }),
+        updateUser: async () => ({ error: { message: 'Sem conexão' } }),
+        setSession: async () => ({ error: { message: 'Sem conexão' } }),
+      },
+      from: () => ({
+        select: () => ({ eq: () => ({ single: async () => ({ data: null, error: { message: 'offline' } }) }), data: null, error: null }),
+        insert: () => ({ select: () => ({ single: async () => ({ data: null, error: { message: 'offline' } }) }) }),
+        update: () => ({ eq: () => ({ data: null, error: { message: 'offline' } }) }),
+        delete: () => ({ eq: () => ({ data: null, error: { message: 'offline' } }) }),
+        upsert: async () => ({ data: null, error: { message: 'offline' } }),
+      }),
+    };
 
 /* ─── DADOS EM MEMÓRIA (cache local) ───────────── */
 let USERS        = {};
@@ -2121,6 +2142,30 @@ window.addEventListener('DOMContentLoaded', async () => {
         return;
       }
     }
+  }
+
+  // ── Se offline e sem Supabase carregado, usar cache ──
+  if (!window.supabase || !navigator.onLine) {
+    const cachedProfile = localStorage.getItem('fiel_profile_cache');
+    if (cachedProfile) {
+      try {
+        const profile = JSON.parse(cachedProfile);
+        CU = {
+          id: profile.id, email: profile.email, name: profile.name, role: profile.role,
+          avatar: profile.avatar, color: profile.color, plan: profile.plan,
+          blocked: profile.blocked, whatsapp: profile.whatsapp
+        };
+        await loadAll();
+        hideSplash();
+        launchApp();
+        toast('Modo offline — dados do último acesso', 'ti-wifi-off', 'info');
+        return;
+      } catch(e) { console.warn('Boot offline falhou:', e); }
+    }
+    hideSplash();
+    showView('v-chooser');
+    toast('Sem internet — faça login online primeiro para ativar o modo offline', 'ti-wifi-off', 'err');
+    return;
   }
 
   try {
